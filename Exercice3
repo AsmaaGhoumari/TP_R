@@ -1,0 +1,244 @@
+#packages de base à installer 
+install.packages("tm")
+library(tm)
+install.packages("sentiment")
+
+#pour les fréquences de mots
+install.packages("arules")
+library(arules)
+
+#Oeuvre complete de Jane Austen
+TEXTFILE = "completeWorksJaneAusten.txt" 
+if (!file.exists(TEXTFILE)) {
+  +     download.file("http://www.gutenberg.org/cache/epub/31100/pg31100.txt", destfile = TEXTFILE)
+  + }
+
+#############################################################################
+########## 1 NETTOYAGE DE LA SOURCE DE DONNEES ##############################
+#############################################################################
+austen = readLines(TEXTFILE)
+
+#nombre de lignes dans l'oeuvre : 80476
+length(austen)
+#[1] 80476
+
+#Affichage des 6 premières lignes du texte
+head(austen)
+#[1] "ï»¿"                                                                  
+#[2] "Project Gutenberg's The Complete Works of Jane Austen, by Jane Austen"
+#[3] ""                                                                     
+#[4] "This eBook is for the use of anyone anywhere at no cost and with"     
+#[5] "almost no restrictions whatsoever.  You may copy it, give it away or" 
+#[6] "re-use it under the terms of the Project Gutenberg License included"  
+
+#Affichage des 6 dernières lignes du texte
+tail(austen)
+#[1] ""                                                                  
+#[2] "This Web site includes information about Project Gutenberg-tm,"    
+#[3] "including how to make donations to the Project Gutenberg Literary" 
+#[4] "Archive Foundation, how to help produce our new eBooks, and how to"
+#[5] "subscribe to our email newsletter to hear about new eBooks."       
+#[6] ""
+
+#Suppression des 43 premières lignes car leur contenu n'est pas pertinent ici
+austen = austen[-(1:43)]
+
+
+#debut du texte est maintenant le début du livre Dedication: 
+head(austen)
+#[1] "             DEDICATION"          ""                                
+#[3] "     This Jane Austen collection" "         is dedicated to"        
+#[5] "     Alice Goodson [Hart] Woodby" "" 
+
+#on enlève les derières lignes non pertinentes du texte
+austen = austen[-(80064:length(austen))]
+
+#les 6 dernières lignes du texte sont maintenant : 
+tail(austen)
+#[1] "merits and the happiness of Elinor and Marianne, let it not be ranked"
+#[2] "as the least considerable, that though sisters, and living almost"    
+#[3] "within sight of each other, they could live without disagreement"     
+#[4] "between themselves, or producing coolness between their husbands."    
+#[5] ""                                                                     
+#[6] "THE END"  
+
+
+austen = paste(austen, collapse = " ")
+
+#nombre de caractères dans le texte 
+nchar(austen)
+#[1] 4354069
+
+#austen = strsplit(austen, "<<[^>]*>>")[[1]]
+#length(austen)
+#[1] 1
+chapter <- grep("Chapter", austen, ignore.case = TRUE)
+
+length(austen)
+#[1]  80063
+#suppression des lignes où il y a des chapitres
+austen = austen[-chapter]
+
+length(austen)
+#[1] 79732
+
+#############################################################################
+####################### 2 FREQUENCES DES MOTS ##############################
+#############################################################################
+library(tm)
+
+doc.vec <- VectorSource(austen)
+doc.corpus <- Corpus(doc.vec)
+summary(doc.corpus)
+#2337  2      PlainTextDocument list
+#2338  2      PlainTextDocument list
+#2339  2      PlainTextDocument list
+#2340  2      PlainTextDocument list
+#2341  2      PlainTextDocument list
+#2342  2      PlainTextDocument list
+#2343  2      PlainTextDocument list
+
+doc.corpus <- tm_map(doc.corpus, content_transformer(tolower))
+doc.corpus <- tm_map(doc.corpus, removePunctuation)
+doc.corpus <- tm_map(doc.corpus, removeNumbers)
+doc.corpus <- tm_map(doc.corpus, removeWords, stopwords("english"))
+
+
+library(SnowballC)
+doc.corpus <- tm_map(doc.corpus, stemDocument)
+doc.corpus <- tm_map(doc.corpus, stripWhitespace)
+
+#marche pas :( 
+inspect(doc.corpus[8])
+
+TDM <- TermDocumentMatrix(doc.corpus)
+TDM
+#<<TermDocumentMatrix (terms: 32372, documents: 79732)>>
+#Non-/sparse entries: 347583/2580736721
+#Sparsity           : 100%
+#Maximal term length: 40
+#Weighting          : term frequency (tf)
+
+#marche pas :( 
+inspect(TDM[1:10,1:10])
+
+DTM <- DocumentTermMatrix(doc.corpus)
+
+#marche pas :( 
+inspect(DTM[1:10,1:10])
+
+#les 15 mots les plus fréquemment utilisés sont : 
+findFreqTerms(TDM, 1200)
+# [1] "everi" "know"  "littl" "might" "miss"  "mr."   "mrs."  "much" 
+#[9] "must"  "never" "one"   "said"  "see"   "think" "will" 
+
+
+#Première méthode : 
+findAssocs(TDM, "everi", 0.8)
+#$everi
+#numeric(0)
+findAssocs(TDM, "know", 0.8)
+#$know
+#numeric(0)
+findAssocs(TDM, "littl", 0.8)
+#$littl
+#numeric(0)
+findAssocs(TDM, "might", 0.6)
+#
+#
+findAssocs(TDM, "miss", 0.8)
+#$miss
+#numeric(0)
+
+findAssocs(TDM, "mr.", 0.8)
+#
+#
+findAssocs(TDM, "mrs.", 0.8)
+#
+#
+findAssocs(TDM, "much", 0.8)
+#
+#
+findAssocs(TDM, "must", 0.8)
+#
+#
+findAssocs(TDM, "never", 0.8)
+#
+#
+findAssocs(TDM, "one", 0.8)
+
+findAssocs(TDM, "said", 0.8)
+
+findAssocs(TDM, "see", 0.8)
+
+findAssocs(TDM, "think", 0.8)
+
+findAssocs(TDM, "will", 0.8)
+
+
+#Seconde Methode : arules 
+
+TDM.common = removeSparseTerms(TDM, 0.1)
+dim(TDM)
+#[1] 32372 79732
+dim(TDM.common)
+#[1]     0 79732
+inspect(TDM.common[1:10,1:10])
+
+library(slam)
+TDM.dense <- as.matrix(TDM.common)
+TDM.dense
+
+object.size(TDM.common)
+#4466736 bytes
+object.size(TDM.dense)
+#4465664 bytes
+
+############################################################################# 
+####################### 3 REPRESENTATION GRAPHIQUE ##########################
+#############################################################################
+install.packages("wordcloud")
+library(wordcloud)
+library(RColorBrewer)
+
+palette <- brewer.pal(9,"BuGn")[-(1:4)]
+#ca marche pas 
+#wordcloud(rownames(TDM.dense), rowSums(TDM.dense), min.freq = 1, color = palette)
+#ça marche 
+wordcloud(doc.corpus, scale=c(5,0.5), max.words=100, random.order=FALSE, rot.per=0.35, use.r.layout=FALSE, colors=palette)
+
+
+library(reshape2)
+TDM.dense = melt(TDM.dense, value.name = "count")
+head(TDM.dense)
+[1] Terms Docs  count
+<0 rows> (or 0-length row.names)
+
+#install.packages("ggplot2")
+#install.packages("colorspace")
+library(ggplot2)
+library(colorspace)
+ggplot(TDM.dense, aes(x = Docs, y = Terms, fill = log10(count))) +
+  +     geom_tile(colour = "white") +
+  +     scale_fill_gradient(high="#FF0000" , low="#FFFFFF")+
+  +     ylab("") +
+  +     theme(panel.background = element_blank()) +
+  +     theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+inspect(Epub2003[1:5])
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
